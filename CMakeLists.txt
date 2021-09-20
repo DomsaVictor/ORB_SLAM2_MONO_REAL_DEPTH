@@ -62,6 +62,9 @@ ${PROJECT_SOURCE_DIR}/orb_slam2/Thirdparty/g2o/lib/libg2o.so
 )
 
 set(LIBS_ROS
+${EIGEN3_LIBS}
+${PROJECT_SOURCE_DIR}/orb_slam2/Thirdparty/DBoW2/lib/libDBoW2.so
+${PROJECT_SOURCE_DIR}/orb_slam2/Thirdparty/g2o/lib/libg2o.so
 ${PROJECT_SOURCE_DIR}/orb_slam2/lib/lib${PROJECT_NAME}.so
 ${OpenCV_LIBS}
 ${catkin_LIBRARIES}
@@ -134,6 +137,16 @@ ros/src/Node.cc
 )
 add_dependencies (${PROJECT_NAME}_mono ${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
 
+add_executable(${PROJECT_NAME}_load_maps
+ros/src/load_maps.cc
+)
+add_dependencies (${PROJECT_NAME}_load_maps ${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
+target_link_libraries(${PROJECT_NAME}_load_maps
+${LIBS_ORBSLAM}
+${LIBS_ROS}
+${BOOST_SERIALIZATION}
+)
+
 target_link_libraries(${PROJECT_NAME}_mono
 ${LIBS_ROS}
 )
@@ -158,7 +171,7 @@ target_link_libraries(${PROJECT_NAME}_rgbd
 ${LIBS_ROS}
 )
 
-install(TARGETS ${PROJECT_NAME}_mono ${PROJECT_NAME}_stereo ${PROJECT_NAME}_rgbd
+install(TARGETS ${PROJECT_NAME}_mono ${PROJECT_NAME}_stereo ${PROJECT_NAME}_rgbd ${PROJECT_NAME}_load_maps
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -184,4 +197,8 @@ install(DIRECTORY orb_slam2/config/
 
 install(DIRECTORY orb_slam2/Vocabulary/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/orb_slam2/Vocabulary
+)
+
+catkin_install_python(PROGRAMS ros/src/MergePointClouds.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

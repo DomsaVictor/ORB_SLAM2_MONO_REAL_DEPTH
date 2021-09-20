@@ -229,7 +229,7 @@ void LocalMapping::CreateNewMapPoints()
     const float &invfx1 = mpCurrentKeyFrame->invfx;
     const float &invfy1 = mpCurrentKeyFrame->invfy;
 
-    const float ratioFactor = 1.5f*mpCurrentKeyFrame->mfScaleFactor;
+    const float ratioFactor = 1.5f * mpCurrentKeyFrame->mfScaleFactor;
 
     int nnew=0;
 

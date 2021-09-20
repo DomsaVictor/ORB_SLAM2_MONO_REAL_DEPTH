@@ -687,18 +687,87 @@ float KeyFrame::ComputeRealDepth(const float distance, const float c_x, const fl
     //cv::Mat orb_points_mat_x;
 
     float lambda_x = 0;
+    std::vector<float> points;
 
     for(int i=0; i<N; i++)
     {
         if(mvpMapPoints[i] && mvKeysUn.at(i).pt.x > x1 && mvKeysUn.at(i).pt.y > y1 && mvKeysUn.at(i).pt.x < x2 && mvKeysUn.at(i).pt.y < y2)
         {
-            cout << "EXAMPLE X COORD OF POINT:    [" <<  (float)mvpMapPoints.at(i)->GetWorldPos().at<float> (2) << "]\n";
-            //orb_points_mat_x.push_back((float)mvpMapPoints.at(i)->GetWorldPos().at<float> (0)); // x = 2? 
-            lambda_x = lambda_x + abs(distance / ((float) 1 * mvpMapPoints.at(i)->GetWorldPos().at<float> (2)));
+            cout << "POINTS WITH OUTLINERS:     [" <<  (float)mvpMapPoints.at(i)->GetWorldPos().at<float> (2) << "]\n";
+            points.push_back((float) mvpMapPoints.at(i)->GetWorldPos().at<float> (2));             
             m += 1;
         }
     }
-    lambda_x = lambda_x / m;
+
+    std::sort (points.begin(), points.end());
+   
+    
+    for (int i = 0; i < m; i++)
+    {
+        cout << points.at(i) << " ";
+    }
+    cout <<"\n";
+    
+
+    int mid_length = floor (m/2); 
+    float Q1 = 0, Q3 = 0, IQR = 0;
+    float lower_limit = 0, upper_limit = 0;
+    int i, n1=0, n3=0;
+
+    if((float)m / 2.0 == 0)
+    {
+        for(i = 0; i < mid_length ; i++)
+        {
+            Q1 += points.at(i);
+            n1 += 1;
+        }
+        Q1 = Q1 / n1;
+
+        for(i = mid_length + 1; i < m; i++)
+        {
+            Q3 += points.at(i);
+            n3 += 1;
+        }
+        Q3 = Q3/n3;
+    }
+    else
+    {
+        for(i = 0; i < mid_length-1 ; i++)
+        {
+            Q1 += points.at(i);
+            n1 += 1;
+        }
+        Q1 = Q1/n1;
+        for(i = mid_length+1; i < m; i++)
+        {
+            Q3 += points.at(i);
+            n3 += 1;
+        }
+        Q3 = Q3/n3;
+    }
+
+    cout << "Q1:            [" << Q1 << ", " << n1 << "]\n";
+    cout << "Q3:            [" << Q3 << ", " << n3 << "]\n";
+
+    IQR = Q3 - Q1;
+    lower_limit = Q1 - 1.5 * IQR;
+    upper_limit = Q3 + 1.5 * IQR;
+
+    cout << "IQR:           [" << IQR << "]\n";
+    cout << "LOWER LIMIT:   [" << lower_limit << "]\n";
+    cout << "UPPER LIMIT:   [" << upper_limit << "]\n";
+
+    float count = 0;
+
+    for (int i=0; i<m; i++)
+    {
+        if (points.at(i) > lower_limit && points.at(i) < upper_limit)
+        {
+            lambda_x = lambda_x + abs(distance / points.at(i));
+            count += 1;
+        }
+    }
+    lambda_x = lambda_x / count;
     // cv::Mat lidar_points_mat_x(m, 1, CV_32F, distance);
     {
         /*
@@ -715,8 +784,10 @@ float KeyFrame::ComputeRealDepth(const float distance, const float c_x, const fl
         lambda_x = lambda_x / (m * sum( orb_points_mat_x * orb_points_mat_x.t() )[0] - (sum(orb_points_mat_x)[0] * sum(orb_points_mat_x)[0]));
         */
     }
-    cout << "IN COMPUTE DISTANCES LAMBDA: [" << lambda_x << "]\n";
-    cout << "NUMBER OF USED MAP POINTS:   [" << m << "]\n";
+    cout << "IN COMPUTE DISTANCES LAMBDA:   [" << lambda_x << "]\n";
+    cout << "MEDIAN POINT DISTANCE:         [" << lambda_x * points.at(m/2) << "]\n";
+    cout << "ALL POINTS:                    [" << m << "]\n";
+    cout << "NUMBER OF USED MAP POINTS:     [" << count << "]\n";
     // cout << "EXAMPLE X COORD OF POINT:    [" <<  mvpMapPoints.at((int)m/2)->GetWorldPos().at<float> (2) << "]\n";
     return lambda_x;
 }
