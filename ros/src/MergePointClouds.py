@@ -12,6 +12,8 @@ from matplotlib.cm import get_cmap
 import pcl
 import copy
 from probreg import cpd
+from visualization_msgs.msg import Marker
+from visualization_msgs.msg import MarkerArray
 
 
 class MapsSubscriber:
@@ -85,6 +87,83 @@ class PointCloudRegistrator:
         print("Transformation succesful.")
         return tf_param
 
+
+class MarkerArrays:
+    def __init__(self, tf_param):
+        self.marker_sub_source = rospy.Subscriber("/vis_marker_array_source", MarkerArray, self.sourceCallback, queue_size=1)
+        self.marker_sub_target = rospy.Subscriber("/vis_marker_array_target", MarkerArray, self.targetCallback, queue_size=1)
+        self.marker_source = None
+        self.marker_target = None
+        self.marker_source_transformed = None
+        self.tf_param = tf_param
+        self.marker_pub = rospy.Publisher("/traformed_markers", MarkerArray, queue_size=10)
+
+
+    def targetCallback(self, msg):
+        aux_marker_np = np.array([[0, 0, 0]]) 
+        for marker in msg.markers:
+            x = marker.pose.position.x
+            y = marker.pose.position.y
+            z = marker.pose.position.z
+            print("target callback" + str(x))
+            new_row = np.array([[x, y, z]])
+            aux_marker_np = np.append(aux_marker_np, new_row, axis=0)
+        
+        self.marker_target = np.array(aux_marker_np[1:])
+        
+        if self.marker_target is not None:
+            self.marker_sub_source.unregister()
+
+    def sourceCallback(self, msg):
+        aux_marker_np = np.array([[0, 0, 0]])
+        for marker in msg.markers:
+            x = marker.pose.position.x
+            y = marker.pose.position.y
+            z = marker.pose.position.z
+            print("source callback" + str(x))
+            new_row = np.array([[x, y, z]])
+            aux_marker_np = np.append(aux_marker_np, new_row, axis=0)
+        
+        self.marker_source = np.array(aux_marker_np[1:])
+        
+        if self.marker_source is not None:
+            print("OK in marker source")
+            self.marker_source_transformed = copy.deepcopy(self.marker_source)
+            self.marker_source_transformed = self.tf_param.transform(self.marker_source)
+            print(self.marker_source_transformed.shape)
+            self.marker_sub_source.unregister()
+
+    def publish_transformed_markers(self):
+        if self.marker_source_transformed is not None:
+            count_transformed_markers = 0
+            
+            transformed_marker_array = MarkerArray()
+            for x, y, z in self.marker_source_transformed:
+                marker = Marker()
+                marker.header.frame_id = "/map"
+                marker.header.stamp = rospy.Time.now()
+                marker.type = Marker.CUBE
+                marker.action = Marker.ADD
+                count_transformed_markers += 1
+                marker.id = count_transformed_markers
+                marker.pose.orientation.w = 1.0
+
+                marker.scale.x = 1.5
+                marker.scale.y = 1.5  
+                marker.scale.z = 2
+
+                marker.color.a = 1.0
+                marker.color.r = 1
+                marker.color.g = 0
+                marker.color.b = 0
+
+                marker.pose.position.x = x
+                marker.pose.position.y = y
+                marker.pose.position.z = z
+                transformed_marker_array.markers.append(marker)
+
+            self.marker_pub.publish(transformed_marker_array)
+
 def point_cloud_from_np(points, parent_frame):
     ros_dtype = PointField.FLOAT32
     dtype = np.float32
@@ -129,6 +208,20 @@ if __name__ == '__main__':
 
     # get the transform that needs to be used to also transform the MarkerArrays from RVIZ !! not yet implemented !!
     tf_param = point_cloud_registrator.cpd()
+
+    rot = np.array(tf_param.rot)
+    scale = np.array(tf_param.scale)
+    translation = np.array(tf_param.t)
+    
+    '''
+    transform function:
+        scale * np.dot(points, rot.T) + translation
+    '''
+    '''
+    print(rot)
+    print(scale)
+    print(translation)
+    '''
     result = np.array(point_cloud_registrator.result)
 
     print(result.shape)
@@ -143,9 +236,20 @@ if __name__ == '__main__':
     result = np.hstack((result[:, 0:3], colors1))
 
     print("DONE. PUBLISHING")
+    markers = MarkerArrays(tf_param)
     
     while not rospy.is_shutdown():
         # publish the points. the point_cloud_from_np functions need to be called every time to update the time stamp in header
         # not sure if necessary but rn does not hurt...
         pub_points1.publish(point_cloud_from_np(result, '/map'))
+        if markers.marker_target is not None and markers.marker_source_transformed is not None:
+            print("Read markers succesfully.")
+            print("Original source markers: ")
+            print(markers.marker_source)
+            print("After transform: ")
+            print(markers.marker_source_transformed)
+            markers.publish_transformed_markers()
+        else:
+            print("markers not yet received...")
+
         r.sleep()
